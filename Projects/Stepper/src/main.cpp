@@ -1,49 +1,130 @@
 #include <Arduino.h>
-
 #include <Stepper.h>
-
-const int stepsPerRevolution = 200;  // change this to fit the number of steps per revolution
-// for your motor
+#include "OneButton.h"
 
 // initialize the stepper library on pins 8 through 11:
+
+const int stepsPerRevolution = 200; 
 Stepper myStepper(stepsPerRevolution, 4, 5, 6, 7);
 
+static int buttonPin = 15; // Analog pin A1.
+OneButton pushButton(buttonPin, true);
+
+int sensorPin = 14; // Pin A0.
+int activationThreshold = 900;	// set the threshold voltage (in units * 5v / 1024)
+
+int motorEnablePin = 2;
+
+void PowerOff();
+void PowerOn();
+
+void CallWhenClicked();
+void ReturntoHome();
+bool atHome = false;
+
 int stepCount = 0;  // number of steps the motor has taken
-int speed = 5;
+int motorSpeed = 50;
+
+enum operatingModes
+{
+	InitialisingMode,
+	WaitingforInputMode,
+	RotatingMode,
+};
+
+int operatingMode = InitialisingMode;
+int newOperatingMode = InitialisingMode;
+bool justChangedMode = true;
+
 void setup() {
-  // nothing to do inside the setup
-    Serial.begin(9600);
-    Serial.println("Stepper test!");
+	Serial.begin(9600);
+	Serial.println("Stepper test!");
+	myStepper.setSpeed(motorSpeed);
+	Serial.println("Stepper test!");
+	pushButton.attachClick( CallWhenClicked );
+	PowerOn();
 }
 
 void loop() {
-  // // read the sensor value:
-  // int sensorReading = analogRead(A0);
-  // // map it to a range from 0 to 100:
-  // int motorSpeed = map(sensorReading, 0, 1023, 0, 100);
-  // // set the motor speed:
-  // if (motorSpeed > 0) {
-  //   myStepper.setSpeed(motorSpeed);
-  //   // step 1/100 of a revolution:
-  //   myStepper.step(stepsPerRevolution / 100);
-  // }
-    // for (int i=1; i < 40; i++) {
-    //   myStepper.setSpeed(i);
-    //   myStepper.step(100 * i / stepsPerRevolution);
-    //   Serial.println("Stepped: ");
-    //   Serial.println(i);
-    // }
+	pushButton.tick();
 
-    myStepper.setSpeed(50);
-    myStepper.step(speed);
+	atHome = analogRead(sensorPin) > activationThreshold ? true : false ;
 
-    // speed = speed + 1;
-    // if (speed > 100) {
-    //   speed = 10;
-    // }
+	switch(operatingMode) {
 
+		case InitialisingMode:
+			if (justChangedMode) {
+				justChangedMode = false;
+				Serial.println("Initialising Mode" );
+				Serial.println( analogRead(sensorPin) ) ;
+			}
+			if (atHome) {
+				newOperatingMode = WaitingforInputMode;
+			}
+			else {
+				ReturntoHome();
+			}
+			break;
+		case WaitingforInputMode:
+				if (justChangedMode) {
+				justChangedMode = false;
+				Serial.println("Waiting for Input Mode" );
+				PowerOff();
+			}
+			break;
+		case RotatingMode:
+				if (justChangedMode) {
+				justChangedMode = false;
+				Serial.println("Rotating Mode" );
+				PowerOn();
+				delayMicroseconds(100);
+			}
+			if (!atHome) {
+				ReturntoHome();
+			}
+			else{
+				myStepper.step(stepsPerRevolution);
+				newOperatingMode = WaitingforInputMode;
+			}
+			break;
+	}
 
+	if (newOperatingMode != operatingMode){
+		operatingMode = newOperatingMode;
+		justChangedMode = true;
+		Serial.println("Just changed operating mode.");
+	}
+}
 
-    // step 1/100 of a revolution:
+void CallWhenClicked() {
+		/**
+	* Turn the motor one revolution.
+	*/
+	Serial.println("Just clicked");
+	newOperatingMode = RotatingMode;
+}
 
+void ReturntoHome(){
+	/**
+	* Turn until at the home position.
+	*/
+		if (!atHome) {
+			myStepper.step(1);
+		}
+}
+
+void PowerOff(){
+	/**
+	* Enable sleep mode on motor drive board
+	*/
+	digitalWrite(motorEnablePin, LOW);
+	Serial.println("Power Off");
+};
+
+void PowerOn(){
+	/**
+	* Disable sleep mode on motor drivve board. 
+	*/
+	digitalWrite(motorEnablePin, HIGH);
+	Serial.println("Power On");
 }
