@@ -6,7 +6,7 @@ const int stepsPerRevolution = 200;
 Stepper myStepper(stepsPerRevolution, 4, 5, 6, 7);
 int motorEnablePin = 2;
 int stepCount = 0;  // number of steps the motor has taken
-int motorSpeed = 50;
+int motorSpeed = 45;
 
 static int buttonPin = 15; // Analog pin A1.
 OneButton pushButton(buttonPin, true);
@@ -32,7 +32,7 @@ enum operatingModes
 int operatingMode = InitialisingMode;
 int newOperatingMode = InitialisingMode;
 bool justChangedMode = true;
-int timer = 0;
+unsigned long timer = 0;
 int sleepTimer = 3000; // Length of time the motor remains powered during inactivity. 
 
 void setup() {
@@ -69,6 +69,7 @@ void loop() {
 				justChangedMode = false;
 				Serial.println("Waiting for Input Mode" );
 				timer = millis();
+				Serial.print(timer);
 			}
 			if (millis() - timer > sleepTimer){
 				PowerOff();
@@ -123,7 +124,7 @@ void PowerOff(){
 	* Enable sleep mode on motor drive board
 	*/
 	digitalWrite(motorEnablePin, LOW);
-	Serial.println("Power Off");
+	// Serial.println("Power Off");
 }
 
 void PowerOn(){
@@ -131,7 +132,7 @@ void PowerOn(){
 	* Disable sleep mode on motor drivve board. 
 	*/
 	digitalWrite(motorEnablePin, HIGH);
-	Serial.println("Power On");
+	// Serial.println("Power On");
 }
 
 int AverageAnalogRead(int inputPin, int numberOfSamples){
