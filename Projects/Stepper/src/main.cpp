@@ -2,8 +2,8 @@
 #include <Stepper.h>
 #include "OneButton.h"
 
-Stepper myStepper(stepsPerRevolution, 4, 5, 6, 7);
 const int stepsPerRevolution = 200; 
+Stepper myStepper(stepsPerRevolution, 4, 5, 6, 7);
 int motorEnablePin = 2;
 int stepCount = 0;  // number of steps the motor has taken
 int motorSpeed = 50;
