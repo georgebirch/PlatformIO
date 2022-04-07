@@ -2,28 +2,25 @@
 #include <Stepper.h>
 #include "OneButton.h"
 
-// initialize the stepper library on pins 8 through 11:
-
-const int stepsPerRevolution = 200; 
 Stepper myStepper(stepsPerRevolution, 4, 5, 6, 7);
+const int stepsPerRevolution = 200; 
+int motorEnablePin = 2;
+int stepCount = 0;  // number of steps the motor has taken
+int motorSpeed = 50;
 
 static int buttonPin = 15; // Analog pin A1.
 OneButton pushButton(buttonPin, true);
 
-int sensorPin = 14; // Pin A0.
-int activationThreshold = 900;	// set the threshold voltage (in units * 5v / 1024)
-
-int motorEnablePin = 2;
+int photoSensorPin = 14; // Pin A0.
+int activationThreshold = 150;	// Threshold voltage for the optical sensor (in units * 5v / 1024)
+bool atHome = false;
+int AverageAnalogRead(int inputPin, int numberOfSamples);
 
 void PowerOff();
 void PowerOn();
 
 void CallWhenClicked();
 void ReturntoHome();
-bool atHome = false;
-
-int stepCount = 0;  // number of steps the motor has taken
-int motorSpeed = 50;
 
 enum operatingModes
 {
@@ -31,14 +28,15 @@ enum operatingModes
 	WaitingforInputMode,
 	RotatingMode,
 };
-
+  
 int operatingMode = InitialisingMode;
 int newOperatingMode = InitialisingMode;
 bool justChangedMode = true;
+int timer = 0;
+int sleepTimer = 3000; // Length of time the motor remains powered during inactivity. 
 
 void setup() {
 	Serial.begin(9600);
-	Serial.println("Stepper test!");
 	myStepper.setSpeed(motorSpeed);
 	Serial.println("Stepper test!");
 	pushButton.attachClick( CallWhenClicked );
@@ -47,18 +45,19 @@ void setup() {
 
 void loop() {
 	pushButton.tick();
-
-	atHome = analogRead(sensorPin) > activationThreshold ? true : false ;
-
+	atHome = analogRead(photoSensorPin) < activationThreshold ? true : false ;
 	switch(operatingMode) {
-
-		case InitialisingMode:
-			if (justChangedMode) {
+	/**
+	* Initialise by moving to home position, then wait for button input.
+	* Pressing the button also cancels movement.
+	* Power is cut to motor if inactive for 3s. 
+	**/
+		case InitialisingMode: 
+			if (justChangedMode){
 				justChangedMode = false;
 				Serial.println("Initialising Mode" );
-				Serial.println( analogRead(sensorPin) ) ;
 			}
-			if (atHome) {
+			if (atHome){
 				newOperatingMode = WaitingforInputMode;
 			}
 			else {
@@ -66,24 +65,27 @@ void loop() {
 			}
 			break;
 		case WaitingforInputMode:
-				if (justChangedMode) {
+			if (justChangedMode){
 				justChangedMode = false;
 				Serial.println("Waiting for Input Mode" );
+				timer = millis();
+			}
+			if (millis() - timer > sleepTimer){
 				PowerOff();
 			}
 			break;
 		case RotatingMode:
-				if (justChangedMode) {
+			if (justChangedMode){
 				justChangedMode = false;
 				Serial.println("Rotating Mode" );
 				PowerOn();
 				delayMicroseconds(100);
 			}
-			if (!atHome) {
+			if (!atHome){	// Check if rotor is in home position, if not return to home. 
 				ReturntoHome();
 			}
-			else{
-				myStepper.step(stepsPerRevolution);
+			else {
+				myStepper.step(stepsPerRevolution);	// Turn 1 full revolution 
 				newOperatingMode = WaitingforInputMode;
 			}
 			break;
@@ -96,19 +98,22 @@ void loop() {
 	}
 }
 
-void CallWhenClicked() {
-		/**
-	* Turn the motor one revolution.
+void CallWhenClicked(){
+	/**
+	* Initiate or cancel the motor, depending on current state. 
 	*/
 	Serial.println("Just clicked");
-	newOperatingMode = RotatingMode;
+	if (operatingMode == WaitingforInputMode){
+		newOperatingMode = RotatingMode;
+	}
+	else {newOperatingMode = WaitingforInputMode;}
 }
 
 void ReturntoHome(){
 	/**
 	* Turn until at the home position.
 	*/
-		if (!atHome) {
+		if (!atHome){
 			myStepper.step(1);
 		}
 }
@@ -119,7 +124,7 @@ void PowerOff(){
 	*/
 	digitalWrite(motorEnablePin, LOW);
 	Serial.println("Power Off");
-};
+}
 
 void PowerOn(){
 	/**
@@ -127,4 +132,16 @@ void PowerOn(){
 	*/
 	digitalWrite(motorEnablePin, HIGH);
 	Serial.println("Power On");
+}
+
+int AverageAnalogRead(int inputPin, int numberOfSamples){
+	/**
+	* Take an average sampling of the analog input. 
+	* Can be used to help set the activationthreshold. 
+	*/
+	int sum = 0;
+	for (int i = 0; i < numberOfSamples; i++){
+		sum = sum + analogRead(inputPin);
+	}
+	return sum / numberOfSamples;
 }
