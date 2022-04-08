@@ -3,12 +3,13 @@
 #include "OneButton.h"
 
 const int stepsPerRevolution = 200; 
+const int revolutionsPerCycle = 2;
 Stepper myStepper(stepsPerRevolution, 4, 5, 6, 7);
 int motorEnablePin = 2;
 int stepCount = 0;  // number of steps the motor has taken
 int motorSpeed = 45;
 
-static int buttonPin = 15; // Analog pin A1.
+static int buttonPin = 3; // Analog pin A1.
 OneButton pushButton(buttonPin, true);
 
 int photoSensorPin = 14; // Pin A0.
@@ -86,8 +87,12 @@ void loop() {
 				ReturntoHome();
 			}
 			else {
-				myStepper.step(stepsPerRevolution);	// Turn 1 full revolution 
-				newOperatingMode = WaitingforInputMode;
+				myStepper.step(1);
+				stepCount++;
+				if (stepCount == stepsPerRevolution * revolutionsPerCycle){
+					newOperatingMode = WaitingforInputMode;
+					stepCount = 0;
+				}
 			}
 			break;
 	}
@@ -108,6 +113,9 @@ void CallWhenClicked(){
 		newOperatingMode = RotatingMode;
 	}
 	else {newOperatingMode = WaitingforInputMode;}
+	if (operatingMode == RotatingMode){
+		stepCount = 0;
+	}
 }
 
 void ReturntoHome(){
