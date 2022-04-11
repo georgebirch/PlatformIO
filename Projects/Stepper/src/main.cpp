@@ -1,6 +1,6 @@
-#include <Arduino.h>
+#include <Arduino.h> // Comment out, if using Arduino IDE
 #include <Stepper.h>
-#include "OneButton.h"
+#include "OneButton.h" // Change to < ... > if using arduino IDE
 
 const int stepsPerRevolution = 200; 
 const int revolutionsPerCycle = 2;
