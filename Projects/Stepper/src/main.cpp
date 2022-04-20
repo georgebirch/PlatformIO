@@ -21,27 +21,29 @@ void PowerOff();
 void PowerOn();
 
 void CallWhenClicked();
+void CallWhenPressed();
 void ReturntoHome();
 
 enum operatingModes
-{
+{	StandbyMode,
 	InitialisingMode,
 	WaitingforInputMode,
 	RotatingMode,
 };
-  
-int operatingMode = InitialisingMode;
-int newOperatingMode = InitialisingMode;
+
+int operatingMode = StandbyMode;
+int newOperatingMode = StandbyMode;
 bool justChangedMode = true;
 unsigned long timer = 0;
-int sleepTimer = 3000; // Length of time the motor remains powered during inactivity. 
+int sleepTimer = 5000; // Length of time the motor remains powered during inactivity. 
 
 void setup() {
 	Serial.begin(9600);
 	myStepper.setSpeed(motorSpeed);
 	Serial.println("Stepper test!");
 	pushButton.attachClick( CallWhenClicked );
-	PowerOn();
+	pushButton.attachLongPressStart( CallWhenPressed );
+	PowerOff();
 }
 
 void loop() {
@@ -49,14 +51,27 @@ void loop() {
 	atHome = analogRead(photoSensorPin) < activationThreshold ? true : false ;
 	switch(operatingMode) {
 	/**
-	* Initialise by moving to home position, then wait for button input.
-	* Pressing the button also cancels movement.
-	* Power is cut to motor if inactive for 3s. 
+	* Start by waiting for a button input. 
+	* On first button input, Initialise by moving to home position, then wait for button input.
+	* On button click input, rotate 2 full revolutions.
+	* Clicking during rotation stops the motor.
+	* Power is cut to motor if inactive for sleeptimer seconds. Motor will stop holding position. This prevents too much heat buildup. 
+	* Power is cut to the motor if hoem position is not found within sleeptimer.
+	* Motor can also return to home position with a long press
 	**/
+		case StandbyMode:
+			if (justChangedMode){
+				justChangedMode = false;
+				Serial.println("Standby Mode Mode" );
+				PowerOff();
+			}
+			break;
 		case InitialisingMode: 
 			if (justChangedMode){
 				justChangedMode = false;
 				Serial.println("Initialising Mode" );
+				PowerOn();
+				timer = millis();
 			}
 			if (atHome){
 				newOperatingMode = WaitingforInputMode;
@@ -64,15 +79,18 @@ void loop() {
 			else {
 				ReturntoHome();
 			}
+			if (millis() - timer > sleepTimer){ // In case home position never triggers, don't spin forever 
+				newOperatingMode = StandbyMode;
+			}
 			break;
 		case WaitingforInputMode:
 			if (justChangedMode){
 				justChangedMode = false;
 				Serial.println("Waiting for Input Mode" );
 				timer = millis();
-				Serial.print(timer);
+				stepCount = 0;
 			}
-			if (millis() - timer > sleepTimer){
+			if (millis() - timer > sleepTimer){ // Stay in same mode but power off motor. 
 				PowerOff();
 			}
 			break;
@@ -83,16 +101,11 @@ void loop() {
 				PowerOn();
 				delayMicroseconds(100);
 			}
-			if (!atHome){	// Check if rotor is in home position, if not return to home. 
-				ReturntoHome();
-			}
-			else {
-				myStepper.step(1);
-				stepCount++;
-				if (stepCount == stepsPerRevolution * revolutionsPerCycle){
-					newOperatingMode = WaitingforInputMode;
-					stepCount = 0;
-				}
+			myStepper.step(1);
+			stepCount++;
+			if (stepCount == stepsPerRevolution * revolutionsPerCycle){
+				newOperatingMode = WaitingforInputMode;
+				stepCount = 0;
 			}
 			break;
 	}
@@ -100,22 +113,34 @@ void loop() {
 	if (newOperatingMode != operatingMode){
 		operatingMode = newOperatingMode;
 		justChangedMode = true;
-		Serial.println("Just changed operating mode.");
+		Serial.println("Just changed operating mode to:");
+		Serial.println();		
 	}
 }
 
 void CallWhenClicked(){
 	/**
-	* Initiate or cancel the motor, depending on current state. 
+	* Change state, depending on current state. 
 	*/
-	Serial.println("Just clicked");
-	if (operatingMode == WaitingforInputMode){
+	Serial.println("<Button click>");
+	if (operatingMode == StandbyMode){
+		newOperatingMode = InitialisingMode;
+	}
+	else if (operatingMode == WaitingforInputMode){
 		newOperatingMode = RotatingMode;
 	}
 	else {newOperatingMode = WaitingforInputMode;}
-	if (operatingMode == RotatingMode){
-		stepCount = 0;
-	}
+	// if (operatingMode == RotatingMode){
+	// 	stepCount = 0;
+	// }
+}
+
+void CallWhenPressed(){
+	/**
+	* If the button is long-pressed, go home.
+	*/
+	Serial.println("<Button  press>");
+	newOperatingMode = InitialisingMode;
 }
 
 void ReturntoHome(){
